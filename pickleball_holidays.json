@@ -1,0 +1,25 @@
+{
+  "_comment": "Indian public holidays that fall on weekdays (Mon-Fri). Weekends already covered by recurring Fri/Sat/Sun schedule. Edit this list to add/remove dates. Islamic holidays may shift 1-2 days based on moon sighting.",
+  "holidays": [
+    {"date": "2026-01-01", "name": "New Year"},
+    {"date": "2026-01-26", "name": "Republic Day"},
+    {"date": "2026-02-19", "name": "Shivaji Maharaj Jayanti"},
+    {"date": "2026-03-03", "name": "Holi"},
+    {"date": "2026-03-20", "name": "Gudi Padwa"},
+    {"date": "2026-03-26", "name": "Rama Navami"},
+    {"date": "2026-03-31", "name": "Mahavir Jayanti"},
+    {"date": "2026-04-03", "name": "Good Friday"},
+    {"date": "2026-04-14", "name": "Ambedkar Jayanti"},
+    {"date": "2026-05-01", "name": "Maharashtra Day"},
+    {"date": "2026-05-27", "name": "Bakrid"},
+    {"date": "2026-06-26", "name": "Muharram"},
+    {"date": "2026-08-26", "name": "Milad un-Nabi"},
+    {"date": "2026-09-04", "name": "Janmashtami"},
+    {"date": "2026-09-14", "name": "Ganesh Chaturthi"},
+    {"date": "2026-10-02", "name": "Gandhi Jayanti"},
+    {"date": "2026-10-20", "name": "Dussehra"},
+    {"date": "2026-10-21", "name": "Dussehra (Day 2)"},
+    {"date": "2026-11-24", "name": "Guru Nanak Jayanti"},
+    {"date": "2026-12-25", "name": "Christmas"}
+  ]
+}

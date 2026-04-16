@@ -1,0 +1,140 @@
+name: Pickleball Court Booking
+
+# Runs daily at 23:59 IST (18:29 UTC).
+# Determines what to book based on the day of week (IST).
+# This is a BACKUP for local launchd — whichever runs first wins,
+# the other detects the existing booking via "My Bookings" API and skips.
+
+on:
+  schedule:
+    # 23:59 IST = 18:29 UTC (daily)
+    - cron: '29 18 * * *'
+  workflow_dispatch:
+    inputs:
+      day_override:
+        description: 'Force a specific day: friday, saturday, sunday, holiday (comma-separated for multiple)'
+        required: false
+        default: ''
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  book:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write accounts file from secret
+        run: echo '${{ secrets.PICKLEBALL_ACCOUNTS }}' > pickleball_accounts.json
+
+      - name: Determine bookings to run
+        id: plan
+        run: |
+          # If manual trigger with override, use that
+          if [ -n "${{ inputs.day_override }}" ]; then
+            echo "jobs=${{ inputs.day_override }}" >> "$GITHUB_OUTPUT"
+            echo "Manual override: ${{ inputs.day_override }}"
+            exit 0
+          fi
+
+          # Get current day of week in IST (UTC+5:30)
+          # At 18:29 UTC it's 23:59 IST — same calendar day in IST
+          IST_DAY=$(TZ=Asia/Kolkata date +%A)
+          echo "IST day: $IST_DAY"
+
+          JOBS="holiday"  # Always run holiday check
+
+          case "$IST_DAY" in
+            Thursday)  JOBS="friday,$JOBS" ;;
+            Friday)    JOBS="saturday,$JOBS" ;;
+            Saturday)  JOBS="sunday,$JOBS" ;;
+          esac
+
+          echo "jobs=$JOBS" >> "$GITHUB_OUTPUT"
+          echo "Will run: $JOBS"
+
+      # ── Friday booking (Amit primary, 18:00-19:00) ──
+      - name: Book Friday
+        if: contains(steps.plan.outputs.jobs, 'friday')
+        run: |
+          python book_pickleball_api.py \
+            --account amit --date auto \
+            --slots 18:00 18:30 19:00 \
+            --court 3 \
+            --fallback-player khyati \
+            --fallback-account khyati zaheer annika \
+            --confirm --retries 8 --retry-gap 30
+
+      # ── Saturday booking (Khyati primary, 17:00-18:30) ──
+      - name: Book Saturday
+        if: contains(steps.plan.outputs.jobs, 'saturday')
+        run: |
+          python book_pickleball_api.py \
+            --account khyati --date auto \
+            --slots 17:00 17:30 18:00 18:30 \
+            --court 3 \
+            --fallback-player amit \
+            --fallback-account amit zaheer annika \
+            --confirm --retries 8 --retry-gap 30
+
+      # ── Sunday booking (Zaheer primary, 17:30-18:30) ──
+      - name: Book Sunday
+        if: contains(steps.plan.outputs.jobs, 'sunday')
+        run: |
+          python book_pickleball_api.py \
+            --account zaheer --date auto \
+            --slots 17:30 18:00 18:30 \
+            --court 3 \
+            --fallback-player amit \
+            --fallback-account amit khyati annika \
+            --confirm --retries 8 --retry-gap 30
+
+      # ── Holiday check (runs daily, exits silently if not a holiday) ──
+      - name: Check and book holidays
+        if: contains(steps.plan.outputs.jobs, 'holiday')
+        run: |
+          # Compute target date (8 days from now in IST)
+          TARGET=$(TZ=Asia/Kolkata python3 -c "
+          from datetime import date, timedelta
+          print((date.today() + timedelta(days=8)).isoformat())
+          ")
+          echo "Holiday check for: $TARGET"
+
+          # Check if target is in holidays JSON
+          HOLIDAY_NAME=$(python3 -c "
+          import json
+          holidays = json.load(open('pickleball_holidays.json'))['holidays']
+          target = '$TARGET'
+          match = [h for h in holidays if h['date'] == target]
+          print(match[0]['name'] if match else '')
+          ")
+
+          if [ -z "$HOLIDAY_NAME" ]; then
+            echo "$TARGET is not a holiday — skipping"
+            exit 0
+          fi
+
+          echo "HOLIDAY: $HOLIDAY_NAME on $TARGET — booking!"
+          python book_pickleball_api.py \
+            --account khyati --date auto \
+            --slots 17:30 18:00 \
+            --court 3 \
+            --fallback-player amit \
+            --fallback-account amit zaheer annika \
+            --confirm --retries 8 --retry-gap 30
+
+      - name: Cleanup accounts file
+        if: always()
+        run: rm -f pickleball_accounts.json

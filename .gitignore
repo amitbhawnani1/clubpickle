@@ -1,0 +1,7 @@
+pickleball_accounts.json
+pickleball_logs/
+*.log
+__pycache__/
+*.pyc
+venv/
+.env
