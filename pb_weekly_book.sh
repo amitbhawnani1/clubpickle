@@ -40,8 +40,9 @@ WORK_DIR="/Users/amit.b/club"
 LOG_DIR="$WORK_DIR/pickleball_logs"
 PYTHON_BIN="/opt/homebrew/bin/python3"
 
-# Compute the target date (auto = today + 8 days).
-TARGET_DATE=$("$PYTHON_BIN" -c "from datetime import date, timedelta; print((date.today() + timedelta(days=8)).isoformat())")
+# Compute the target date (today + 8 days, evaluated in IST explicitly
+# so a Mac clock in a different timezone cannot shift the date).
+TARGET_DATE=$(TZ=Asia/Kolkata "$PYTHON_BIN" -c "from datetime import date, timedelta; print((date.today() + timedelta(days=8)).isoformat())")
 LOG_FILE="$LOG_DIR/launchd_pb_${ACCOUNT}_${TARGET_DATE}.log"
 
 mkdir -p "$LOG_DIR"
@@ -60,9 +61,11 @@ if [[ ${#FALLBACK_ACCOUNTS[@]} -gt 0 ]]; then
 fi
 
 # 8 attempts × 30s = covers 23:59 to ~00:03, crossing the midnight gate.
+# Pass the wrapper-computed TARGET_DATE explicitly so it cannot drift if the
+# Python process happens to cross midnight IST during execution.
 "$PYTHON_BIN" "$WORK_DIR/book_pickleball_api.py" \
     --account "$ACCOUNT" \
-    --date auto \
+    --date "$TARGET_DATE" \
     --slots "${SLOTS[@]}" \
     --court 3 \
     --fallback-player "$FALLBACK_PLAYER" \

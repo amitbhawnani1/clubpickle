@@ -41,6 +41,13 @@ jobs:
       - name: Determine bookings to run
         id: plan
         run: |
+          # Compute the TARGET booking date once in IST, and share it with
+          # all subsequent booking steps. This avoids per-step recomputation
+          # which could drift across a midnight IST boundary.
+          TARGET=$(TZ=Asia/Kolkata python3 -c "from datetime import date, timedelta; print((date.today() + timedelta(days=8)).isoformat())")
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "Booking target date (IST today + 8): $TARGET"
+
           # If manual trigger with override, use that
           if [ -n "${{ inputs.day_override }}" ]; then
             echo "jobs=${{ inputs.day_override }}" >> "$GITHUB_OUTPUT"
@@ -49,7 +56,6 @@ jobs:
           fi
 
           # Get current day of week in IST (UTC+5:30)
-          # At 18:29 UTC it's 23:59 IST — same calendar day in IST
           IST_DAY=$(TZ=Asia/Kolkata date +%A)
           echo "IST day: $IST_DAY"
 
@@ -69,7 +75,7 @@ jobs:
         if: contains(steps.plan.outputs.jobs, 'friday')
         run: |
           python book_pickleball_api.py \
-            --account amit --date auto \
+            --account amit --date "${{ steps.plan.outputs.target }}" \
             --slots 18:00 18:30 19:00 \
             --court 3 \
             --fallback-player khyati \
@@ -81,7 +87,7 @@ jobs:
         if: contains(steps.plan.outputs.jobs, 'saturday')
         run: |
           python book_pickleball_api.py \
-            --account khyati --date auto \
+            --account khyati --date "${{ steps.plan.outputs.target }}" \
             --slots 17:00 17:30 18:00 18:30 \
             --court 3 \
             --fallback-player amit \
@@ -93,7 +99,7 @@ jobs:
         if: contains(steps.plan.outputs.jobs, 'sunday')
         run: |
           python book_pickleball_api.py \
-            --account zaheer --date auto \
+            --account zaheer --date "${{ steps.plan.outputs.target }}" \
             --slots 17:30 18:00 18:30 \
             --court 3 \
             --fallback-player amit \
@@ -103,19 +109,17 @@ jobs:
       # ── Holiday check (runs daily, exits silently if not a holiday) ──
       - name: Check and book holidays
         if: contains(steps.plan.outputs.jobs, 'holiday')
+        env:
+          TARGET: ${{ steps.plan.outputs.target }}
         run: |
-          # Compute target date (8 days from now in IST)
-          TARGET=$(TZ=Asia/Kolkata python3 -c "
-          from datetime import date, timedelta
-          print((date.today() + timedelta(days=8)).isoformat())
-          ")
+          # Use the shared TARGET from the plan step — do NOT recompute here,
+          # to eliminate any chance of drift across a midnight-IST boundary.
           echo "Holiday check for: $TARGET"
 
-          # Check if target is in holidays JSON
           HOLIDAY_NAME=$(python3 -c "
-          import json
+          import json, os
+          target = os.environ['TARGET']
           holidays = json.load(open('pickleball_holidays.json'))['holidays']
-          target = '$TARGET'
           match = [h for h in holidays if h['date'] == target]
           print(match[0]['name'] if match else '')
           ")
@@ -127,7 +131,7 @@ jobs:
 
           echo "HOLIDAY: $HOLIDAY_NAME on $TARGET — booking!"
           python book_pickleball_api.py \
-            --account khyati --date auto \
+            --account khyati --date "$TARGET" \
             --slots 17:30 18:00 \
             --court 3 \
             --fallback-player amit \
