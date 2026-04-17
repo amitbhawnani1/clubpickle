@@ -93,7 +93,7 @@ Slots open at 00:00 IST exactly 7 days ahead. All three layers fire 1-2 minutes 
 |---|---|---|---|---|---|
 | **Friday**   | Thu 23:59 | Thu 18:28 | amit   | 18:00, 18:30, 19:00        | 6:00–7:30 PM |
 | **Saturday** | Fri 23:59 | Fri 18:28 | khyati | 17:00, 17:30, 18:00 | 5:00–6:30 PM |
-| **Sunday**   | Sat 23:59 | Sat 18:28 | zaheer | 17:30, 18:00, 18:30        | 5:30–7:00 PM |
+| **Sunday**   | Sat 23:59 | Sat 18:28 | zaheer | 17:00, 17:30, 18:00        | 5:00–6:30 PM |
 | **Holidays** | Nightly 23:59 | Nightly 18:28 | khyati | 17:30, 18:00 | 5:30–6:30 PM (weekday holidays only, from `pickleball_holidays.json`) |
 
 Account fallback chain for each:
