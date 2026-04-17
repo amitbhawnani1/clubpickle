@@ -464,14 +464,20 @@ def try_single_attempt(
         return True, f"booked: {res.get('data')}"
 
     data = res.get("data") or {}
-    msg = data.get("message") if isinstance(data, dict) else str(data)
+    msg = (data.get("message") if isinstance(data, dict) else str(data)) or ""
 
     # Defensive check: a prior POST may have succeeded on the server but
     # timed out on the client; the internal retry then POSTs again and gets
     # "already booked". Verify by querying My Bookings — if we now own a
     # confirmed booking for any of these slots, treat this as success so
     # we don't try another court / account / retry and cause a duplicate.
-    if "already booked" in msg.lower():
+    #
+    # Skip the recovery for "Phone number for Player 2 ... is already booked"
+    # messages — those are P2 phone collisions (a different account already
+    # booked Amit as Player 2), NOT a timeout-after-success, so running
+    # recovery there could wrongly claim a pre-existing booking as our own.
+    msg_lower = msg.lower()
+    if "already booked" in msg_lower and "player 2" not in msg_lower:
         try:
             bookings = client.get_my_bookings()
             requested = set(slots)
