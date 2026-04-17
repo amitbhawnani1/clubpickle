@@ -58,7 +58,8 @@ import re
 import sys
 import time
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Optional
 
@@ -464,6 +465,33 @@ def try_single_attempt(
 
     data = res.get("data") or {}
     msg = data.get("message") if isinstance(data, dict) else str(data)
+
+    # Defensive check: a prior POST may have succeeded on the server but
+    # timed out on the client; the internal retry then POSTs again and gets
+    # "already booked". Verify by querying My Bookings — if we now own a
+    # confirmed booking for any of these slots, treat this as success so
+    # we don't try another court / account / retry and cause a duplicate.
+    if "already booked" in msg.lower():
+        try:
+            bookings = client.get_my_bookings()
+            requested = set(slots)
+            for b in bookings:
+                if b.get("booking_date") != date_str:
+                    continue
+                if b.get("booking_status") != "confirmed":
+                    continue
+                existing = {s.strip() for s in (b.get("time_slot") or "").split(",")}
+                if requested & existing:
+                    logger.info(
+                        f"RECOVERED: create_booking looked like a failure but "
+                        f"My Bookings shows booking {b.get('id')} exists "
+                        f"(court={b.get('court_id')}, slots={b.get('time_slot')}). "
+                        f"Treating as success to prevent duplicate."
+                    )
+                    return True, f"booked (recovered from timeout): id={b.get('id')}"
+        except Exception as e:
+            logger.warning(f"recovery check via My Bookings failed: {e}")
+
     return False, f"create-failed: {msg}"
 
 
@@ -474,7 +502,11 @@ def try_single_attempt(
 def resolve_date(date_arg: str) -> str:
     """Resolve --date value. 'auto' = today + 8 days (for midnight cron jobs)."""
     if date_arg == "auto":
-        target = date.today() + timedelta(days=8)
+        # Use IST explicitly so a late fire (Mac asleep → launchd catches up
+        # past midnight local time, or GitHub runner in UTC) still computes
+        # the correct booking date. Slots open 7 days ahead at 00:00 IST.
+        ist = ZoneInfo("Asia/Kolkata")
+        target = datetime.now(ist).date() + timedelta(days=8)
         return target.isoformat()
     return date_arg
 
