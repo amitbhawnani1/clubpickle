@@ -1,14 +1,13 @@
 name: Pickleball Court Booking
 
-# Runs daily at 23:59 IST (18:29 UTC).
-# Determines what to book based on the day of week (IST).
-# This is a BACKUP for local launchd — whichever runs first wins,
-# the other detects the existing booking via "My Bookings" API and skips.
+# Triggered on-demand via workflow_dispatch by:
+#   - The Swiss EC2 cron (primary — precise to ~1-2s of 23:58 UTC)
+#   - Manual runs via `gh workflow run` or the GitHub UI
+# Local launchd on the Mac runs the booking script directly and is the
+# local primary; this workflow is the always-on redundant layer.
+# Double-booking is prevented by the `club_get_my_bookings` API check.
 
 on:
-  schedule:
-    # 23:59 IST = 18:29 UTC (daily)
-    - cron: '29 18 * * *'
   workflow_dispatch:
     inputs:
       day_override:
