@@ -1,8 +1,12 @@
-# The Club Mumbai — Pickleball Court Booking
+# The Club Mumbai — Court Booking (Pickleball + Padel)
 
-Automated booking system for The Club Mumbai pickleball courts (https://theclubmumbai.com/the-club-pickleball-game-booking/).
+Automated booking system for The Club Mumbai. Supports both:
+- Pickleball courts (https://theclubmumbai.com/the-club-pickleball-game-booking/)
+- Padel courts (https://theclubmumbai.com/the-club-padel-game-booking/)
 
 Pure-HTTP — no browser, no Selenium. Reverse-engineered WordPress `admin-ajax.php` + SAP login API. Runs from three independent layers for redundancy.
+
+The two games share the same script, accounts, and infrastructure but have **independent weekly hour limits** (5 hours each, tracked separately by the club's API).
 
 ## Architecture
 
@@ -50,12 +54,13 @@ python3 book_pickleball_api.py \
 ```
 
 **Key flags:**
+- `--game` — `pickleball` (default) or `padel`
 - `--account` — primary account (amit/khyati/zaheer/annika)
 - `--date` — `YYYY-MM-DD` or `auto` (IST today + 8 days)
 - `--slots` — space-separated 30-min slot times (e.g. `17:30 18:00 18:30`)
-- `--court` — preferred court (3/2/1); falls back in that order
+- `--court` — preferred court (1-3 for pickleball, 1-4 for padel); falls back in game-specific order
 - `--fallback-player` — Player 2 identity
-- `--fallback-account` — accounts to try if primary hits weekly limit
+- `--fallback-account` — accounts to try if primary hits weekly limit (per-game)
 - `--confirm` — actually submit (without this = dry run)
 - `--retries` / `--retry-gap` — retry loop across the midnight slot-opening window
 - `--allow-partial` (default) / `--no-allow-partial` — book longest contiguous available subset if full slot unavailable
@@ -89,18 +94,33 @@ In GitHub Actions the same JSON is stored as the `PICKLEBALL_ACCOUNTS` secret an
 
 Slots open at 00:00 IST exactly 7 days ahead. All three layers fire 1-2 minutes before midnight IST.
 
+### Pickleball
+
 | Day booked | Local launchd fires (IST) | Swiss cron fires (UTC) | Account | Slots | Duration |
 |---|---|---|---|---|---|
 | **Friday**   | Thu 23:59 | Thu 18:28 | amit   | 18:00, 18:30, 19:00        | 6:00–7:30 PM |
-| **Saturday** | Fri 23:59 | Fri 18:28 | khyati | 17:00, 17:30, 18:00 | 5:00–6:30 PM |
+| **Saturday** | Fri 23:59 | Fri 18:28 | khyati | 17:00, 17:30, 18:00        | 5:00–6:30 PM |
 | **Sunday**   | Sat 23:59 | Sat 18:28 | amit   | 17:00, 17:30, 18:00        | 5:00–6:30 PM |
-| **Holidays** | Nightly 23:59 | Nightly 18:28 | khyati | 17:30, 18:00 | 5:30–6:30 PM (weekday holidays only, from `pickleball_holidays.json`) |
+| **Holidays** | Nightly 23:59 | Nightly 18:28 | khyati | 17:30, 18:00               | 5:30–6:30 PM (weekday holidays only, from `pickleball_holidays.json`) |
 
-Account fallback chain for each:
+Pickleball account fallback chains:
 - Friday: amit → khyati → zaheer → annika
 - Saturday: khyati → amit → zaheer → annika
 - Sunday: amit → khyati → zaheer → annika
 - Holidays: khyati → amit → zaheer → annika
+
+### Padel
+
+| Day booked | Local launchd fires (IST) | Swiss cron fires (UTC) | Account | Slots | Duration |
+|---|---|---|---|---|---|
+| **Saturday** | Fri 23:59 | Fri 18:28 | khyati | 17:30, 18:00 | 5:30–6:30 PM |
+| **Sunday**   | Sat 23:59 | Sat 18:28 | khyati | 17:30, 18:00 | 5:30–6:30 PM |
+
+Padel court preference: 1 → 2 → 3 → 4 (4 courts available).
+Padel fallback chain (both Sat + Sun): khyati → annika → amit → zaheer.
+Player 2 default: annika.
+
+Padel weekly hour limit (5 hr/week) is **separate** from pickleball — booking padel does not consume pickleball quota and vice versa.
 
 ## Repository Layout
 

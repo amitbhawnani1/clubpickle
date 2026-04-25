@@ -63,8 +63,8 @@ jobs:
 
           case "$IST_DAY" in
             Thursday)  JOBS="friday,$JOBS" ;;
-            Friday)    JOBS="saturday,$JOBS" ;;
-            Saturday)  JOBS="sunday,$JOBS" ;;
+            Friday)    JOBS="saturday,padel-sat,$JOBS" ;;
+            Saturday)  JOBS="sunday,padel-sun,$JOBS" ;;
           esac
 
           echo "jobs=$JOBS" >> "$GITHUB_OUTPUT"
@@ -104,6 +104,32 @@ jobs:
             --court 3 \
             --fallback-player khyati \
             --fallback-account khyati zaheer annika \
+            --confirm --retries 8 --retry-gap 30
+
+      # ── Padel Saturday booking (Khyati primary, 17:30-18:30 = 5:30-6:30 PM) ──
+      - name: Book Padel Saturday
+        if: contains(steps.plan.outputs.jobs, 'padel-sat')
+        run: |
+          python book_pickleball_api.py \
+            --game padel \
+            --account khyati --date "${{ steps.plan.outputs.target }}" \
+            --slots 17:30 18:00 \
+            --court 1 \
+            --fallback-player annika \
+            --fallback-account annika amit zaheer \
+            --confirm --retries 8 --retry-gap 30
+
+      # ── Padel Sunday booking (Khyati primary, 17:30-18:30 = 5:30-6:30 PM) ──
+      - name: Book Padel Sunday
+        if: contains(steps.plan.outputs.jobs, 'padel-sun')
+        run: |
+          python book_pickleball_api.py \
+            --game padel \
+            --account khyati --date "${{ steps.plan.outputs.target }}" \
+            --slots 17:30 18:00 \
+            --court 1 \
+            --fallback-player annika \
+            --fallback-account annika amit zaheer \
             --confirm --retries 8 --retry-gap 30
 
       # ── Holiday check (runs daily, exits silently if not a holiday) ──

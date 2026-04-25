@@ -70,9 +70,34 @@ import httpx
 # --------------------------------------------------------------------------- #
 
 BASE = "https://theclubmumbai.com"
-BOOKING_PAGE = f"{BASE}/the-club-pickleball-game-booking/"
 AJAX = f"{BASE}/wp-admin/admin-ajax.php"
 LOGIN_URL = "https://theclubsap.octosystems.com:89/MembersSvc.asmx/Login"
+
+# Per-game configuration. Each entry defines the booking page (used to scrape
+# the WordPress nonce), the court IDs, and the default court preference order.
+GAMES: dict[str, dict] = {
+    "pickleball": {
+        "booking_page": f"{BASE}/the-club-pickleball-game-booking/",
+        "courts": {
+            1: "pickleball_court_1",
+            2: "pickleball_court_2",
+            3: "pickleball_court_3",
+        },
+        # User preference: court 3 first, then 2, then 1
+        "court_pref": [3, 2, 1],
+    },
+    "padel": {
+        "booking_page": f"{BASE}/the-club-padel-game-booking/",
+        "courts": {
+            1: "padel_court_1",
+            2: "padel_court_2",
+            3: "padel_court_3",
+            4: "padel_court_4",
+        },
+        # 4 padel courts; default order 1→2→3→4
+        "court_pref": [1, 2, 3, 4],
+    },
+}
 
 UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -104,11 +129,9 @@ FAMILY_CONTACTS: dict[str, dict[str, str]] = {
     },
 }
 
-COURT_IDS = {
-    1: "pickleball_court_1",
-    2: "pickleball_court_2",
-    3: "pickleball_court_3",
-}
+# Backwards-compat alias — pickleball court IDs (still referenced by some
+# call sites). New code paths should use GAMES[game]["courts"].
+COURT_IDS = GAMES["pickleball"]["courts"]
 
 
 # --------------------------------------------------------------------------- #
@@ -193,9 +216,18 @@ def load_accounts(path: Path) -> dict:
 # --------------------------------------------------------------------------- #
 
 class BookingClient:
-    def __init__(self, creds: Creds, logger: logging.Logger):
+    def __init__(
+        self,
+        creds: Creds,
+        logger: logging.Logger,
+        game: str = "pickleball",
+    ):
+        if game not in GAMES:
+            raise ValueError(f"unknown game {game!r}; expected one of {list(GAMES)}")
         self.creds = creds
         self.log = logger
+        self.game = game
+        self.cfg = GAMES[game]
         self.client = httpx.Client(
             timeout=15.0,
             follow_redirects=True,
@@ -204,7 +236,7 @@ class BookingClient:
                 "Accept": "*/*",
                 "Accept-Language": "en-GB,en;q=0.9",
                 "Origin": BASE,
-                "Referer": BOOKING_PAGE,
+                "Referer": self.cfg["booking_page"],
                 "X-Requested-With": "XMLHttpRequest",
             },
         )
@@ -222,7 +254,7 @@ class BookingClient:
 
     def refresh_nonce(self) -> str:
         """GET the booking page and scrape the nonce + session cookies."""
-        r = self.client.get(BOOKING_PAGE)
+        r = self.client.get(self.cfg["booking_page"])
         r.raise_for_status()
         m = re.search(
             r'<input[^>]+id="nonce"[^>]+value="([^"]+)"', r.text
@@ -277,8 +309,8 @@ class BookingClient:
         return self.ajax(
             "club_get_time_slots",
             date=date,
-            game_type="pickleball",
-            court_id=COURT_IDS[court],
+            game_type=self.game,
+            court_id=self.cfg["courts"][court],
             is_event_booking="no",
         )
 
@@ -286,7 +318,7 @@ class BookingClient:
         return self.ajax(
             "club_get_booked_hours",
             booking_date=date,
-            game_type="pickleball",
+            game_type=self.game,
         )
 
     def get_my_bookings(self) -> list[dict]:
@@ -309,8 +341,8 @@ class BookingClient:
             "nonce": self.nonce,
             "member_id": p["member_no"],
             "member_info": self.creds.member_info_raw,
-            "game_type": "pickleball",
-            "court_id": COURT_IDS[court],
+            "game_type": self.game,
+            "court_id": self.cfg["courts"][court],
             "booking_date": date,
             "time_slots": json.dumps(slots),
             "booking_type": "member",
@@ -486,6 +518,8 @@ def try_single_attempt(
                     continue
                 if b.get("booking_status") != "confirmed":
                     continue
+                if b.get("game_type") and b.get("game_type") != client.game:
+                    continue
                 existing = {s.strip() for s in (b.get("time_slot") or "").split(",")}
                 if requested & existing:
                     logger.info(
@@ -552,17 +586,22 @@ def _has_existing_booking(
         logger.warning(f"could not fetch my bookings: {e} — proceeding anyway")
         return False
 
+    # Only treat existing bookings of the SAME game type as conflicts. A
+    # pickleball booking should not block a padel booking on the same day
+    # (separate weekly hour buckets, separate courts entirely).
     requested = set(requested_slots)
     for b in bookings:
         if b.get("booking_date") != date_str:
             continue
         if b.get("booking_status") != "confirmed":
             continue
+        if b.get("game_type") and b.get("game_type") != client.game:
+            continue
         existing = {s.strip() for s in (b.get("time_slot") or "").split(",")}
         overlap = requested & existing
         if overlap:
             logger.info(
-                f"ALREADY BOOKED: {b.get('court_id')} on {date_str} "
+                f"ALREADY BOOKED ({client.game}): {b.get('court_id')} on {date_str} "
                 f"slots={b.get('time_slot')} (overlap with requested: {overlap}) "
                 f"— skipping to avoid double-booking"
             )
@@ -571,13 +610,17 @@ def _has_existing_booking(
 
 
 def run(args) -> int:
+    if args.game not in GAMES:
+        print(f"unknown --game {args.game!r}; expected one of {list(GAMES)}", file=sys.stderr)
+        return 2
     date_str = resolve_date(args.date)
     log_dir = Path(args.log_dir).expanduser()
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_path = log_dir / f"pickleball_{args.account}_{date_str}.log"
+    # Log filename includes game so padel and pickleball runs don't collide.
+    log_path = log_dir / f"{args.game}_{args.account}_{date_str}.log"
     logger = setup_logger(log_path)
 
-    logger.info(f"target date: {date_str} (from --date {args.date})")
+    logger.info(f"target date: {date_str} (from --date {args.date}) game={args.game}")
 
     # Load account credentials from pickleball_accounts.json
     accounts_path = Path(args.accounts_file).expanduser()
@@ -594,8 +637,19 @@ def run(args) -> int:
                 account_chain.append(fa)
     logger.info(f"account chain: {account_chain}")
 
-    # Court preference: try requested court first, then fall back.
-    court_order = [args.court] + [c for c in (3, 2, 1) if c != args.court]
+    # Court preference: try the requested court first, then the rest in the
+    # game's default preference order.
+    game_cfg = GAMES[args.game]
+    valid_courts = list(game_cfg["courts"].keys())
+    if args.court not in valid_courts:
+        logger.error(
+            f"--court {args.court} not valid for {args.game}; "
+            f"valid: {valid_courts}"
+        )
+        return 2
+    court_order = [args.court] + [
+        c for c in game_cfg["court_pref"] if c != args.court
+    ]
 
     client: Optional[BookingClient] = None
     try:
@@ -622,7 +676,7 @@ def run(args) -> int:
 
                 # Create or switch client
                 if client is None:
-                    client = BookingClient(creds, logger)
+                    client = BookingClient(creds, logger, game=args.game)
                 else:
                     client.switch_account(creds)
 
@@ -719,7 +773,13 @@ def run(args) -> int:
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description="Book pickleball courts at The Club Mumbai via HTTP API."
+        description="Book pickleball or padel courts at The Club Mumbai via HTTP API."
+    )
+    p.add_argument(
+        "--game",
+        default="pickleball",
+        choices=list(GAMES.keys()),
+        help="which game to book (default: pickleball)",
     )
     p.add_argument("--account", required=True, choices=["amit", "khyati", "zaheer", "annika"])
     p.add_argument(
@@ -733,7 +793,9 @@ def parse_args():
         nargs="+",
         help="slot start times, e.g. 17:30 18:00 18:30",
     )
-    p.add_argument("--court", type=int, default=3, choices=[1, 2, 3])
+    # Court preference: 1-3 for pickleball, 1-4 for padel (validated at runtime
+    # against the chosen --game; argparse choices is the union of both).
+    p.add_argument("--court", type=int, default=3, choices=[1, 2, 3, 4])
     p.add_argument(
         "--fallback-player",
         required=True,

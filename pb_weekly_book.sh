@@ -10,6 +10,14 @@
 
 set -u
 
+# Optional `--game GAME` MUST be the very first argument if used
+# (defaults to pickleball for backward compatibility).
+GAME="pickleball"
+if [[ "${1:-}" == "--game" ]]; then
+    GAME="${2:?--game requires a value}"
+    shift 2
+fi
+
 DAY_LABEL="${1:?day_label required}"
 ACCOUNT="${2:?account required}"
 shift 2
@@ -43,11 +51,11 @@ PYTHON_BIN="/opt/homebrew/bin/python3"
 # Compute the target date (today + 8 days, evaluated in IST explicitly
 # so a Mac clock in a different timezone cannot shift the date).
 TARGET_DATE=$(TZ=Asia/Kolkata "$PYTHON_BIN" -c "from datetime import date, timedelta; print((date.today() + timedelta(days=8)).isoformat())")
-LOG_FILE="$LOG_DIR/launchd_pb_${ACCOUNT}_${TARGET_DATE}.log"
+LOG_FILE="$LOG_DIR/launchd_${GAME}_${ACCOUNT}_${TARGET_DATE}.log"
 
 mkdir -p "$LOG_DIR"
-echo "=== $(date '+%Y-%m-%d %H:%M:%S') $DAY_LABEL wrapper starting ===" >> "$LOG_FILE"
-echo "account=$ACCOUNT target=$TARGET_DATE slots=${SLOTS[*]} fallback_player=$FALLBACK_PLAYER fallback_accounts=${FALLBACK_ACCOUNTS[*]:-none}" >> "$LOG_FILE"
+echo "=== $(date '+%Y-%m-%d %H:%M:%S') $GAME $DAY_LABEL wrapper starting ===" >> "$LOG_FILE"
+echo "game=$GAME account=$ACCOUNT target=$TARGET_DATE slots=${SLOTS[*]} fallback_player=$FALLBACK_PLAYER fallback_accounts=${FALLBACK_ACCOUNTS[*]:-none}" >> "$LOG_FILE"
 
 cd "$WORK_DIR" || {
     echo "FATAL: could not cd $WORK_DIR" >> "$LOG_FILE"
@@ -60,14 +68,19 @@ if [[ ${#FALLBACK_ACCOUNTS[@]} -gt 0 ]]; then
     FA_ARGS+=("--fallback-account" "${FALLBACK_ACCOUNTS[@]}")
 fi
 
+# Default preferred court depends on the game: pickleball=3, padel=1.
+DEFAULT_COURT=3
+[[ "$GAME" == "padel" ]] && DEFAULT_COURT=1
+
 # 8 attempts × 30s = covers 23:59 to ~00:03, crossing the midnight gate.
 # Pass the wrapper-computed TARGET_DATE explicitly so it cannot drift if the
 # Python process happens to cross midnight IST during execution.
 "$PYTHON_BIN" "$WORK_DIR/book_pickleball_api.py" \
+    --game "$GAME" \
     --account "$ACCOUNT" \
     --date "$TARGET_DATE" \
     --slots "${SLOTS[@]}" \
-    --court 3 \
+    --court "$DEFAULT_COURT" \
     --fallback-player "$FALLBACK_PLAYER" \
     "${FA_ARGS[@]}" \
     --retries 8 \
