@@ -106,27 +106,29 @@ jobs:
             --fallback-account khyati zaheer annika \
             --confirm --retries 8 --retry-gap 30
 
-      # ── Padel Saturday booking (Khyati primary, 17:30-18:30 = 5:30-6:30 PM) ──
+      # ── Padel Saturday booking ──
+      # Priority: 5:30-6:30 PM, then 5:00-6:00 PM, then any single 30-min slot.
       - name: Book Padel Saturday
         if: contains(steps.plan.outputs.jobs, 'padel-sat')
         run: |
           python book_pickleball_api.py \
             --game padel \
             --account khyati --date "${{ steps.plan.outputs.target }}" \
-            --slots 17:30 18:00 \
+            --slot-pref "17:30,18:00" "17:00,17:30" "17:00" "17:30" "18:00" \
             --court 1 \
             --fallback-player annika \
             --fallback-account annika amit zaheer \
             --confirm --retries 8 --retry-gap 30
 
-      # ── Padel Sunday booking (Khyati primary, 17:30-18:30 = 5:30-6:30 PM) ──
+      # ── Padel Sunday booking ──
+      # Priority: 5:30-6:30 PM, then 5:00-6:00 PM, then any single 30-min slot.
       - name: Book Padel Sunday
         if: contains(steps.plan.outputs.jobs, 'padel-sun')
         run: |
           python book_pickleball_api.py \
             --game padel \
             --account khyati --date "${{ steps.plan.outputs.target }}" \
-            --slots 17:30 18:00 \
+            --slot-pref "17:30,18:00" "17:00,17:30" "17:00" "17:30" "18:00" \
             --court 1 \
             --fallback-player annika \
             --fallback-account annika amit zaheer \

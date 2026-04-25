@@ -614,6 +614,28 @@ def run(args) -> int:
     if args.game not in GAMES:
         print(f"unknown --game {args.game!r}; expected one of {list(GAMES)}", file=sys.stderr)
         return 2
+
+    # Resolve slot preferences. Either --slots (single list) or --slot-pref
+    # (priority-ordered list of lists).
+    if args.slot_pref and args.slots:
+        print("error: --slot-pref and --slots are mutually exclusive", file=sys.stderr)
+        return 2
+    if args.slot_pref:
+        slot_prefs: list[list[str]] = [
+            [s.strip() for s in pref.split(",") if s.strip()]
+            for pref in args.slot_pref
+        ]
+        # When the caller is being explicit about fallbacks, do NOT also do
+        # within-set partial fallback — that would book single slots from
+        # preference 1 before trying preference 2's full set.
+        use_partial_within_pref = False
+    elif args.slots:
+        slot_prefs = [args.slots]
+        use_partial_within_pref = args.allow_partial
+    else:
+        print("error: must provide --slots or --slot-pref", file=sys.stderr)
+        return 2
+
     date_str = resolve_date(args.date)
     log_dir = Path(args.log_dir).expanduser()
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -681,10 +703,10 @@ def run(args) -> int:
                 else:
                     client.switch_account(creds)
 
-                # Check "My Bookings" — if this account (or any family
-                # member sharing the same membership) already has a confirmed
-                # booking overlapping our requested slots, we're done.
-                if _has_existing_booking(client, date_str, args.slots, logger):
+                # Check "My Bookings" — if this account already has a confirmed
+                # booking overlapping ANY of the candidate pref slots, we're done.
+                union_slots = sorted({s for pref in slot_prefs for s in pref})
+                if _has_existing_booking(client, date_str, union_slots, logger):
                     logger.info(
                         f"account {acct_name} already has overlapping booking "
                         f"for {date_str} — exiting successfully"
@@ -697,64 +719,75 @@ def run(args) -> int:
                     f"({player2['phone']})"
                 )
 
-                # Two-pass court search: first try to get the FULL requested
-                # slot set on any court (3 → 2 → 1). Only if no court has full
-                # availability do we fall back to partial booking (if
-                # --allow-partial, which defaults to True).
-                passes = [False]
-                if args.allow_partial:
-                    passes.append(True)
-
+                # For each preference (in priority order), do the existing
+                # 2-pass court search. First success wins.
                 acct_action = None  # "next-account" | "next-attempt" | None
-                for allow_partial in passes:
-                    if allow_partial:
+                for pref_idx, pref_slots in enumerate(slot_prefs, 1):
+                    if len(slot_prefs) > 1:
                         logger.info(
-                            f"no full slot available on any court for "
-                            f"{acct_name} — falling back to partial booking"
-                        )
-                    for court in court_order:
-                        ok, msg = try_single_attempt(
-                            client,
-                            date_str=date_str,
-                            court=court,
-                            slots=args.slots,
-                            player2=player2,
-                            dry_run=not args.confirm,
-                            logger=logger,
-                            allow_partial=allow_partial,
-                        )
-                        logger.info(
-                            f"account={acct_name} court={court} "
-                            f"allow_partial={allow_partial} -> ok={ok} {msg}"
+                            f"--- preference {pref_idx}/{len(slot_prefs)}: {pref_slots} ---"
                         )
 
-                        if ok:
+                    # Pass 1 (full slot set on any court). Pass 2 (partial within
+                    # this preference set) only if explicit --slots single-list
+                    # mode AND --allow-partial.
+                    passes = [False]
+                    if use_partial_within_pref:
+                        passes.append(True)
+
+                    for allow_partial in passes:
+                        if allow_partial:
                             logger.info(
-                                f"SUCCESS account={acct_name} attempt={attempt} "
-                                f"court={court} partial={allow_partial}: {msg}"
+                                f"no full slot available on any court for "
+                                f"{acct_name} — falling back to partial booking"
                             )
-                            return 0
-
-                        if "already-booked" in msg:
-                            continue  # try next court
-                        if "slots-not-available" in msg and "7 days" in msg:
-                            acct_action = "next-attempt"
-                            break  # date not open yet, retry later
-                        if "weekly booking limit" in msg or "remaining" in msg:
+                        for court in court_order:
+                            ok, msg = try_single_attempt(
+                                client,
+                                date_str=date_str,
+                                court=court,
+                                slots=pref_slots,
+                                player2=player2,
+                                dry_run=not args.confirm,
+                                logger=logger,
+                                allow_partial=allow_partial,
+                            )
                             logger.info(
-                                f"account {acct_name} weekly limit hit, "
-                                f"trying next account..."
+                                f"account={acct_name} court={court} "
+                                f"slots={pref_slots} allow_partial={allow_partial} "
+                                f"-> ok={ok} {msg}"
                             )
-                            acct_action = "next-account"
-                            break  # switch to next account in chain
-                        # other failure -> try next court
 
+                            if ok:
+                                logger.info(
+                                    f"SUCCESS account={acct_name} attempt={attempt} "
+                                    f"court={court} pref={pref_idx} "
+                                    f"partial={allow_partial}: {msg}"
+                                )
+                                return 0
+
+                            if "already-booked" in msg:
+                                continue  # try next court
+                            if "slots-not-available" in msg and "7 days" in msg:
+                                acct_action = "next-attempt"
+                                break  # date not open yet, retry later
+                            if "weekly booking limit" in msg or "remaining" in msg:
+                                logger.info(
+                                    f"account {acct_name} weekly limit hit, "
+                                    f"trying next account..."
+                                )
+                                acct_action = "next-account"
+                                break  # switch to next account in chain
+                            # other failure -> try next court
+
+                        if acct_action is not None:
+                            break  # don't try further passes if blocked
                     if acct_action is not None:
-                        break  # don't try partial pass if blocked
+                        break  # don't try further preferences if blocked
 
                 if acct_action == "next-attempt":
                     break  # stop trying accounts, wait for retry gap
-                # Otherwise (next-account or exhausted courts) try next account
+                # Otherwise (next-account or exhausted prefs) try next account
                 continue
 
             if attempt < args.retries:
@@ -790,9 +823,20 @@ def parse_args():
     )
     p.add_argument(
         "--slots",
-        required=True,
+        required=False,
         nargs="+",
-        help="slot start times, e.g. 17:30 18:00 18:30",
+        help="slot start times, e.g. 17:30 18:00 18:30. Mutually exclusive with --slot-pref.",
+    )
+    p.add_argument(
+        "--slot-pref",
+        nargs="+",
+        help=(
+            "Priority list of slot sets (each comma-separated), e.g. "
+            "'17:30,18:00' '17:00,17:30' '17:00' '17:30' '18:00'. The script "
+            "tries each set in order; the first that books fully wins. "
+            "Implies no partial fallback within a set (be explicit about "
+            "single-slot fallbacks at the end of the list)."
+        ),
     )
     # Court preference: 1-3 for pickleball, 1-4 for padel (validated at runtime
     # against the chosen --game; argparse choices is the union of both).

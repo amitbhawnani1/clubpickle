@@ -72,6 +72,17 @@ fi
 DEFAULT_COURT=3
 [[ "$GAME" == "padel" ]] && DEFAULT_COURT=1
 
+# Detect slot-preference mode: if any positional slot arg contains a comma,
+# the slots are treated as a priority list of preferences, each comma-
+# separated. Pass them via --slot-pref. Otherwise pass via --slots.
+SLOT_FLAG="--slots"
+for s in "${SLOTS[@]}"; do
+    if [[ "$s" == *","* ]]; then
+        SLOT_FLAG="--slot-pref"
+        break
+    fi
+done
+
 # 8 attempts × 30s = covers 23:59 to ~00:03, crossing the midnight gate.
 # Pass the wrapper-computed TARGET_DATE explicitly so it cannot drift if the
 # Python process happens to cross midnight IST during execution.
@@ -79,7 +90,7 @@ DEFAULT_COURT=3
     --game "$GAME" \
     --account "$ACCOUNT" \
     --date "$TARGET_DATE" \
-    --slots "${SLOTS[@]}" \
+    "$SLOT_FLAG" "${SLOTS[@]}" \
     --court "$DEFAULT_COURT" \
     --fallback-player "$FALLBACK_PLAYER" \
     "${FA_ARGS[@]}" \
