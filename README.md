@@ -116,7 +116,7 @@ Pickleball account fallback chains:
 | **Saturday** | Fri 23:59 | Fri 18:28 | khyati | 17:30, 18:00 | 5:30–6:30 PM |
 | **Sunday**   | Sat 23:59 | Sat 18:28 | khyati | 17:30, 18:00 | 5:30–6:30 PM |
 
-Padel court preference: 1 → 2 → 3 → 4 (4 courts available).
+Padel court preference: 1 → 2 only (courts 3 and 4 are intentionally excluded; the script fails rather than booking on them).
 Padel fallback chain (both Sat + Sun): khyati → annika → amit → zaheer.
 Player 2 default: annika.
 

@@ -88,14 +88,15 @@ GAMES: dict[str, dict] = {
     },
     "padel": {
         "booking_page": f"{BASE}/the-club-padel-game-booking/",
+        # The club has 4 physical padel courts but per user preference
+        # we ONLY book on courts 1 and 2. Courts 3 and 4 are intentionally
+        # not registered here, so the script will fail rather than fall
+        # back to them.
         "courts": {
             1: "padel_court_1",
             2: "padel_court_2",
-            3: "padel_court_3",
-            4: "padel_court_4",
         },
-        # 4 padel courts; default order 1→2→3→4
-        "court_pref": [1, 2, 3, 4],
+        "court_pref": [1, 2],
     },
 }
 
