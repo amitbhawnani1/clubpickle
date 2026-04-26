@@ -172,9 +172,13 @@ AWS EC2 in eu-central-2 (Zurich) runs a UTC cron:
 ```
 28 18 * * 4 /home/ubuntu/clubpickle/trigger_github_action.sh friday
 28 18 * * 5 /home/ubuntu/clubpickle/trigger_github_action.sh saturday
+28 18 * * 5 /home/ubuntu/clubpickle/trigger_github_action.sh padel-sat
 28 18 * * 6 /home/ubuntu/clubpickle/trigger_github_action.sh sunday
+28 18 * * 6 /home/ubuntu/clubpickle/trigger_github_action.sh padel-sun
 28 18 * * * /home/ubuntu/clubpickle/trigger_github_action.sh holiday
 ```
+
+Pickleball and padel are dispatched as **separate workflow runs** for the same time slot so they execute in parallel on independent GitHub runners. Combining them into one workflow run (as we did initially) caused padel to start ~3 minutes after midnight IST because the pickleball step's retry loop ran first sequentially — by then, popular padel slots were already grabbed by other members.
 
 The `trigger_github_action.sh` script POSTs to GitHub's workflow_dispatch API. A GitHub PAT is stored at `~/clubpickle/secrets/github_pat` (mode 0600).
 
