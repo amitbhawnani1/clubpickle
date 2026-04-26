@@ -116,15 +116,19 @@ Pickleball account fallback chains:
 | **Saturday** | Fri 23:59 | Fri 18:28 | khyati | priority list (see below) |
 | **Sunday**   | Sat 23:59 | Sat 18:28 | khyati | priority list (see below) |
 
-**Padel slot priority** (for both Sat and Sun, tried in order — first that books wins):
+**Padel slot priority** (tried in order — first that books wins):
 
+**Saturday** padel preferences:
+1. `17:00, 17:30` — **5:00–6:00 PM** (1 hour, preferred)
+2. `17:30, 18:00` — 5:30–6:30 PM (1 hour, fallback)
+3. `17:00` / `17:30` / `18:00` — any 30-min slot (last resort)
+
+**Sunday** padel preferences:
 1. `17:30, 18:00` — **5:30–6:30 PM** (1 hour, preferred)
 2. `17:00, 17:30` — 5:00–6:00 PM (1 hour, fallback)
-3. `17:00` — 30-min last-resort
-4. `17:30` — 30-min last-resort
-5. `18:00` — 30-min last-resort
+3. `17:00` / `17:30` / `18:00` — any 30-min slot (last resort)
 
-This is wired via the `--slot-pref` CLI flag (passed as `<string>17:30,18:00</string><string>17:00,17:30</string>...` in the launchd plists, and `--slot-pref "17:30,18:00" "17:00,17:30" "17:00" "17:30" "18:00"` in the GitHub workflow).
+This is wired via the `--slot-pref` CLI flag (each comma-separated set is one preference; the launchd plist passes them as separate `<string>` array entries, the GitHub workflow as space-separated quoted args).
 
 Padel court preference: **1 → 2 only** (courts 3 and 4 are intentionally excluded; the script fails rather than booking on them).
 Padel fallback chain (both Sat + Sun): khyati → annika → amit → zaheer.
