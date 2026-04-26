@@ -670,9 +670,26 @@ def run(args) -> int:
             f"valid: {valid_courts}"
         )
         return 2
-    court_order = [args.court] + [
-        c for c in game_cfg["court_pref"] if c != args.court
-    ]
+    if args.court_pref:
+        # Explicit court preference list overrides everything. No fallback to
+        # other courts. Used for parallel-per-court cron entries.
+        try:
+            court_order = [int(c.strip()) for c in args.court_pref.split(",") if c.strip()]
+        except ValueError:
+            logger.error(f"--court-pref must be comma-separated integers, got {args.court_pref!r}")
+            return 2
+        for c in court_order:
+            if c not in valid_courts:
+                logger.error(
+                    f"--court-pref includes court {c} which is not valid for "
+                    f"{args.game}; valid: {valid_courts}"
+                )
+                return 2
+        logger.info(f"using explicit --court-pref: {court_order} (no fallback to other courts)")
+    else:
+        court_order = [args.court] + [
+            c for c in game_cfg["court_pref"] if c != args.court
+        ]
 
     client: Optional[BookingClient] = None
     try:
@@ -841,6 +858,15 @@ def parse_args():
     # Court preference: 1-3 for pickleball, 1-4 for padel (validated at runtime
     # against the chosen --game; argparse choices is the union of both).
     p.add_argument("--court", type=int, default=3, choices=[1, 2, 3, 4])
+    p.add_argument(
+        "--court-pref",
+        help=(
+            "Comma-separated court numbers in priority order, e.g. '1' for "
+            "court 1 only (no fallback) or '2,1' for court 2 first then 1. "
+            "Overrides the game's default court preference. Useful for "
+            "running parallel cron entries that each target a single court."
+        ),
+    )
     p.add_argument(
         "--fallback-player",
         required=True,

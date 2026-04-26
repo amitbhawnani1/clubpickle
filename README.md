@@ -111,10 +111,14 @@ Pickleball account fallback chains:
 
 ### Padel
 
-| Day booked | Local launchd fires (IST) | Swiss cron fires (UTC) | Account | Time preferences |
-|---|---|---|---|---|
-| **Saturday** | Fri 23:59 | Fri 18:28 | khyati | priority list (see below) |
-| **Sunday**   | Sat 23:59 | Sat 18:28 | khyati | priority list (see below) |
+For each padel target day, **two parallel attempts fire** — one locked to court 1, one locked to court 2. This maximises the chance of grabbing a court at midnight when popular evening slots get snatched within seconds. The accepted trade-off: if both succeed, the user has a duplicate booking and cancels one manually (the script never cancels).
+
+| Day booked | Local launchd plists (fire Fri/Sat 23:59 IST) | Swiss cron triggers (fire Fri/Sat 18:28 UTC) | Account |
+|---|---|---|---|
+| **Saturday** | `com.ab.padel.saturday.c1` + `com.ab.padel.saturday.c2` | `padel-sat-c1` + `padel-sat-c2` | khyati |
+| **Sunday**   | `com.ab.padel.sunday.c1` + `com.ab.padel.sunday.c2`     | `padel-sun-c1` + `padel-sun-c2` | khyati |
+
+Each attempt is locked to a single court via the `--court-pref N` flag (no fallback to the other court — the parallel attempt takes care of court 2).
 
 **Padel slot priority** (tried in order — first that books wins):
 

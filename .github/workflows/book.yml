@@ -63,8 +63,8 @@ jobs:
 
           case "$IST_DAY" in
             Thursday)  JOBS="friday,$JOBS" ;;
-            Friday)    JOBS="saturday,padel-sat,$JOBS" ;;
-            Saturday)  JOBS="sunday,padel-sun,$JOBS" ;;
+            Friday)    JOBS="saturday,padel-sat-c1,padel-sat-c2,$JOBS" ;;
+            Saturday)  JOBS="sunday,padel-sun-c1,padel-sun-c2,$JOBS" ;;
           esac
 
           echo "jobs=$JOBS" >> "$GITHUB_OUTPUT"
@@ -106,30 +106,56 @@ jobs:
             --fallback-account khyati zaheer annika \
             --confirm --retries 8 --retry-gap 30
 
-      # ── Padel Saturday booking ──
-      # Priority: 5:00-6:00 PM (preferred), 5:30-6:30 PM, then any 30-min slot.
-      - name: Book Padel Saturday
-        if: contains(steps.plan.outputs.jobs, 'padel-sat')
+      # ── Padel Saturday — Court 1 only ──
+      # Priority: 5:00-6:00 PM, 5:30-6:30 PM, any 30-min slot.
+      - name: Book Padel Saturday Court 1
+        if: contains(steps.plan.outputs.jobs, 'padel-sat-c1')
         run: |
           python book_pickleball_api.py \
             --game padel \
             --account khyati --date "${{ steps.plan.outputs.target }}" \
             --slot-pref "17:00,17:30" "17:30,18:00" "17:00" "17:30" "18:00" \
-            --court 1 \
+            --court 1 --court-pref 1 \
             --fallback-player annika \
             --fallback-account annika amit zaheer \
             --confirm --retries 8 --retry-gap 30
 
-      # ── Padel Sunday booking ──
-      # Priority: 5:30-6:30 PM, then 5:00-6:00 PM, then any single 30-min slot.
-      - name: Book Padel Sunday
-        if: contains(steps.plan.outputs.jobs, 'padel-sun')
+      # ── Padel Saturday — Court 2 only ──
+      - name: Book Padel Saturday Court 2
+        if: contains(steps.plan.outputs.jobs, 'padel-sat-c2')
+        run: |
+          python book_pickleball_api.py \
+            --game padel \
+            --account khyati --date "${{ steps.plan.outputs.target }}" \
+            --slot-pref "17:00,17:30" "17:30,18:00" "17:00" "17:30" "18:00" \
+            --court 2 --court-pref 2 \
+            --fallback-player annika \
+            --fallback-account annika amit zaheer \
+            --confirm --retries 8 --retry-gap 30
+
+      # ── Padel Sunday — Court 1 only ──
+      # Priority: 5:30-6:30 PM, 5:00-6:00 PM, any 30-min slot.
+      - name: Book Padel Sunday Court 1
+        if: contains(steps.plan.outputs.jobs, 'padel-sun-c1')
         run: |
           python book_pickleball_api.py \
             --game padel \
             --account khyati --date "${{ steps.plan.outputs.target }}" \
             --slot-pref "17:30,18:00" "17:00,17:30" "17:00" "17:30" "18:00" \
-            --court 1 \
+            --court 1 --court-pref 1 \
+            --fallback-player annika \
+            --fallback-account annika amit zaheer \
+            --confirm --retries 8 --retry-gap 30
+
+      # ── Padel Sunday — Court 2 only ──
+      - name: Book Padel Sunday Court 2
+        if: contains(steps.plan.outputs.jobs, 'padel-sun-c2')
+        run: |
+          python book_pickleball_api.py \
+            --game padel \
+            --account khyati --date "${{ steps.plan.outputs.target }}" \
+            --slot-pref "17:30,18:00" "17:00,17:30" "17:00" "17:30" "18:00" \
+            --court 2 --court-pref 2 \
             --fallback-player annika \
             --fallback-account annika amit zaheer \
             --confirm --retries 8 --retry-gap 30

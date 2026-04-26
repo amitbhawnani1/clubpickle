@@ -10,13 +10,19 @@
 
 set -u
 
-# Optional `--game GAME` MUST be the very first argument if used
-# (defaults to pickleball for backward compatibility).
+# Optional leading flags (must come before DAY_LABEL):
+#   --game GAME       Defaults to pickleball.
+#   --court N         Restrict booking to ONLY court N (no fallback). Forwarded
+#                     as both --court N and --court-pref N to the Python script.
 GAME="pickleball"
-if [[ "${1:-}" == "--game" ]]; then
-    GAME="${2:?--game requires a value}"
-    shift 2
-fi
+COURT_OVERRIDE=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --game)  GAME="${2:?--game requires a value}"; shift 2 ;;
+        --court) COURT_OVERRIDE="${2:?--court requires a value}"; shift 2 ;;
+        *) break ;;
+    esac
+done
 
 DAY_LABEL="${1:?day_label required}"
 ACCOUNT="${2:?account required}"
@@ -68,9 +74,16 @@ if [[ ${#FALLBACK_ACCOUNTS[@]} -gt 0 ]]; then
     FA_ARGS+=("--fallback-account" "${FALLBACK_ACCOUNTS[@]}")
 fi
 
-# Default preferred court depends on the game: pickleball=3, padel=1.
-DEFAULT_COURT=3
-[[ "$GAME" == "padel" ]] && DEFAULT_COURT=1
+# Court selection. If --court was passed, lock to that single court (no
+# fallback). Otherwise use the game-default preferred court with full fallback.
+COURT_ARGS=()
+if [[ -n "$COURT_OVERRIDE" ]]; then
+    COURT_ARGS=("--court" "$COURT_OVERRIDE" "--court-pref" "$COURT_OVERRIDE")
+else
+    DEFAULT_COURT=3
+    [[ "$GAME" == "padel" ]] && DEFAULT_COURT=1
+    COURT_ARGS=("--court" "$DEFAULT_COURT")
+fi
 
 # Detect slot-preference mode: if any positional slot arg contains a comma,
 # the slots are treated as a priority list of preferences, each comma-
@@ -91,7 +104,7 @@ done
     --account "$ACCOUNT" \
     --date "$TARGET_DATE" \
     "$SLOT_FLAG" "${SLOTS[@]}" \
-    --court "$DEFAULT_COURT" \
+    "${COURT_ARGS[@]}" \
     --fallback-player "$FALLBACK_PLAYER" \
     "${FA_ARGS[@]}" \
     --retries 8 \
