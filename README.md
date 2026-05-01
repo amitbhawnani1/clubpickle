@@ -19,7 +19,7 @@ The two games share the same script, accounts, and infrastructure but have **ind
                                      │ books directly
                                      ▼
 ┌─────────────────────┐   ┌────────────────────────┐
-│ Swiss EC2 (cron)    │   │                        │
+│ Dublin VM (cron)    │   │                        │
 │ 23:58 IST precisely │──▶│  The Club Mumbai API   │
 │ triggers GH Actions │   │  (theclubmumbai.com    │
 └──────────┬──────────┘   │   + octosystems.com)   │
@@ -29,7 +29,7 @@ The two games share the same script, accounts, and infrastructure but have **ind
 │ GitHub Actions      │────────────────┘
 │ workflow_dispatch   │   books directly
 │ runs ~1-2s after    │   from US/EU runners
-│ Swiss trigger fires │
+│ Dublin trigger fires│
 └─────────────────────┘
 ```
 
@@ -96,7 +96,7 @@ Slots open at 00:00 IST exactly 7 days ahead. All three layers fire 1-2 minutes 
 
 ### Pickleball
 
-| Day booked | Local launchd fires (IST) | Swiss cron fires (UTC) | Account | Slots | Duration |
+| Day booked | Local launchd fires (IST) | Dublin cron fires (UTC) | Account | Slots | Duration |
 |---|---|---|---|---|---|
 | **Friday**   | Thu 23:59 | Thu 18:28 | amit   | 18:00, 18:30, 19:00        | 6:00–7:30 PM |
 | **Saturday** | Fri 23:59 | Fri 18:28 | khyati | 17:00, 17:30, 18:00        | 5:00–6:30 PM |
@@ -115,8 +115,8 @@ For each padel target day, **two parallel attempts fire** — one locked to cour
 
 | Day booked | Local launchd plists (fire Fri/Sat 23:59 IST) | Swiss cron triggers (fire Fri/Sat 18:28 UTC) | Account |
 |---|---|---|---|
-| **Saturday** | `com.ab.padel.saturday.c1` + `com.ab.padel.saturday.c2` | `padel-sat-c1` + `padel-sat-c2` | khyati |
-| **Sunday**   | `com.ab.padel.sunday.c1` + `com.ab.padel.sunday.c2`     | `padel-sun-c1` + `padel-sun-c2` | khyati |
+| **Saturday** | `com.ab.padel.saturday.c1` + `com.ab.padel.saturday.c2` (fire Fri 23:59 IST) | `padel-sat-c1` + `padel-sat-c2` (fire Fri 18:28 UTC) | khyati |
+| **Sunday**   | `com.ab.padel.sunday.c1` + `com.ab.padel.sunday.c2` (fire Sat 23:59 IST)     | `padel-sun-c1` + `padel-sun-c2` (fire Sat 18:28 UTC) | khyati |
 
 Each attempt is locked to a single court via the `--court-pref N` flag (no fallback to the other court — the parallel attempt takes care of court 2).
 
@@ -173,24 +173,29 @@ launchctl list | grep pickleball
 
 **Sleep caveat:** launchd fires missed jobs on wake, but if the Mac is asleep at 23:59 IST the job runs late (potentially past midnight IST). The script uses IST explicitly for date calculation so a late fire still books the correct date.
 
-### Layer 2 — Swiss EC2 (cron → GitHub workflow_dispatch)
+### Layer 2 — Dublin VM (cron → GitHub workflow_dispatch)
 
-AWS EC2 in eu-central-2 (Zurich) runs a UTC cron:
+Azure VM `azureuser@40.67.245.161` (Dublin region, accessed via the `dublin` ssh alias on the Mac) runs a UTC cron:
 
 ```
-28 18 * * 4 /home/ubuntu/clubpickle/trigger_github_action.sh friday
-28 18 * * 5 /home/ubuntu/clubpickle/trigger_github_action.sh saturday
-28 18 * * 5 /home/ubuntu/clubpickle/trigger_github_action.sh padel-sat
-28 18 * * 6 /home/ubuntu/clubpickle/trigger_github_action.sh sunday
-28 18 * * 6 /home/ubuntu/clubpickle/trigger_github_action.sh padel-sun
-28 18 * * * /home/ubuntu/clubpickle/trigger_github_action.sh holiday
+# Pickleball booking triggers (UTC). 23:58 IST = 18:28 UTC.
+28 18 * * 4 /home/azureuser/clubpickle/trigger_github_action.sh friday
+28 18 * * 5 /home/azureuser/clubpickle/trigger_github_action.sh saturday
+28 18 * * 5 /home/azureuser/clubpickle/trigger_github_action.sh padel-sat-c1
+28 18 * * 5 /home/azureuser/clubpickle/trigger_github_action.sh padel-sat-c2
+28 18 * * 6 /home/azureuser/clubpickle/trigger_github_action.sh sunday
+28 18 * * 6 /home/azureuser/clubpickle/trigger_github_action.sh padel-sun-c1
+28 18 * * 6 /home/azureuser/clubpickle/trigger_github_action.sh padel-sun-c2
+28 18 * * * /home/azureuser/clubpickle/trigger_github_action.sh holiday
 ```
 
-Pickleball and padel are dispatched as **separate workflow runs** for the same time slot so they execute in parallel on independent GitHub runners. Combining them into one workflow run (as we did initially) caused padel to start ~3 minutes after midnight IST because the pickleball step's retry loop ran first sequentially — by then, popular padel slots were already grabbed by other members.
+Pickleball and padel are dispatched as **separate workflow runs** for the same time slot so they execute in parallel on independent GitHub runners. Padel is split further into per-court parallel attempts (`padel-sat-c1` + `padel-sat-c2`) — see "Padel" under Schedules above.
 
-The `trigger_github_action.sh` script POSTs to GitHub's workflow_dispatch API. A GitHub PAT is stored at `~/clubpickle/secrets/github_pat` (mode 0600).
+The `trigger_github_action.sh` script lives in this repo and POSTs to GitHub's workflow_dispatch API. A GitHub PAT is stored at `~/clubpickle/secrets/github_pat` on the trigger box (mode 0600, gitignored).
 
-**Why Swiss is trigger-only:** octosystems.com:89 (the SAP login endpoint) blocks the Swiss server's IP, so direct booking from Switzerland fails. But GitHub API works, so Swiss acts as a precision trigger — GitHub Actions does the actual booking from its US/EU runners.
+**Why the trigger box is trigger-only:** the original Swiss EC2 trigger box discovered that octosystems.com:89 (the SAP login endpoint) blocks some non-Indian IPs, so direct booking from outside India fails. The trigger box just calls GitHub's API (port 443, never blocked), and GitHub Actions does the actual booking from its US/EU runners.
+
+**Trigger-box history:** Originally Swiss EC2 (eu-central-2, Zurich), now Dublin Azure VM after Swiss went offline. The setup is identical — `git clone` the repo, drop a PAT into `secrets/github_pat`, install the cron entries above.
 
 ### Layer 3 — GitHub Actions
 
