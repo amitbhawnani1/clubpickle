@@ -82,25 +82,25 @@ jobs:
             --fallback-account khyati zaheer annika \
             --confirm --retries 8 --retry-gap 30
 
-      # ── Saturday booking (Khyati primary, 17:00-18:30 = 5:00-6:30 PM) ──
+      # ── Saturday booking (Khyati primary, 17:00-19:00 = 5:00-7:00 PM, 2 hr) ──
       - name: Book Saturday
         if: contains(steps.plan.outputs.jobs, 'saturday')
         run: |
           python book_pickleball_api.py \
             --account khyati --date "${{ steps.plan.outputs.target }}" \
-            --slots 17:00 17:30 18:00 \
+            --slots 17:00 17:30 18:00 18:30 \
             --court 3 \
             --fallback-player amit \
             --fallback-account amit zaheer annika \
             --confirm --retries 8 --retry-gap 30
 
-      # ── Sunday booking (Amit primary, 17:00-18:30 = 5:00-6:30 PM) ──
+      # ── Sunday booking (Amit primary, 17:30-19:00 = 5:30-7:00 PM, 1.5 hr) ──
       - name: Book Sunday
         if: contains(steps.plan.outputs.jobs, 'sunday')
         run: |
           python book_pickleball_api.py \
             --account amit --date "${{ steps.plan.outputs.target }}" \
-            --slots 17:00 17:30 18:00 \
+            --slots 17:30 18:00 18:30 \
             --court 3 \
             --fallback-player khyati \
             --fallback-account khyati zaheer annika \
