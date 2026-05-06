@@ -109,7 +109,13 @@ Pickleball account fallback chains:
 - Sunday: amit → khyati → zaheer → annika
 - Holidays: khyati → amit → zaheer → annika
 
-### Padel
+### Padel — ⏸️ PAUSED
+
+Padel auto-bookings are currently disabled. To resume: re-load the 4 launchd plists (`launchctl load ~/Library/LaunchAgents/com.ab.padel.{saturday,sunday}.{c1,c2}.plist`) and uncomment the 4 padel lines in Dublin's crontab (lines starting with `# PAUSED:`).
+
+The schedule below is what will resume on un-pause.
+
+
 
 For each padel target day, **two parallel attempts fire** — one locked to court 1, one locked to court 2. This maximises the chance of grabbing a court at midnight when popular evening slots get snatched within seconds. The accepted trade-off: if both succeed, the user has a duplicate booking and cancels one manually (the script never cancels).
 
