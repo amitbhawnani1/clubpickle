@@ -70,13 +70,13 @@ jobs:
           echo "jobs=$JOBS" >> "$GITHUB_OUTPUT"
           echo "Will run: $JOBS"
 
-      # ── Friday booking (Amit primary, 18:00-19:00) ──
+      # ── Friday booking (Amit primary, 18:30-19:30 = 6:30-7:30 PM, 1 hr) ──
       - name: Book Friday
         if: contains(steps.plan.outputs.jobs, 'friday')
         run: |
           python book_pickleball_api.py \
             --account amit --date "${{ steps.plan.outputs.target }}" \
-            --slots 18:00 18:30 19:00 \
+            --slots 18:30 19:00 \
             --court 3 \
             --fallback-player khyati \
             --fallback-account khyati zaheer annika \
