@@ -109,11 +109,7 @@ Pickleball account fallback chains:
 - Sunday: amit → khyati → zaheer → annika
 - Holidays: khyati → amit → zaheer → annika
 
-### Padel — ⏸️ PAUSED
-
-Padel auto-bookings are currently disabled. To resume: re-load the 4 launchd plists (`launchctl load ~/Library/LaunchAgents/com.ab.padel.{saturday,sunday}.{c1,c2}.plist`) and uncomment the 4 padel lines in Dublin's crontab (lines starting with `# PAUSED:`).
-
-The schedule below is what will resume on un-pause.
+### Padel
 
 
 
