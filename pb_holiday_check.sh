@@ -43,13 +43,14 @@ cd "$WORK_DIR" || {
     exit 1
 }
 
-# Book 17:30-18:30 (2 slots) with Khyati as primary, Amit and Zaheer as fallbacks.
+# Book 17:30-19:00 (3 slots = 5:30-7:00 PM, 1.5 hr) with Khyati as primary,
+# fallback chain Amit -> Zaheer -> Annika.
 # Pass the wrapper-computed TARGET_DATE explicitly so the script books the
 # exact same date we confirmed is a holiday.
 "$PYTHON_BIN" "$WORK_DIR/book_pickleball_api.py" \
     --account khyati \
     --date "$TARGET_DATE" \
-    --slots 17:30 18:00 \
+    --slots 17:30 18:00 18:30 \
     --court 3 \
     --fallback-player amit \
     --fallback-account amit zaheer annika \

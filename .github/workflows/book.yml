@@ -186,7 +186,7 @@ jobs:
           echo "HOLIDAY: $HOLIDAY_NAME on $TARGET — booking!"
           python book_pickleball_api.py \
             --account khyati --date "$TARGET" \
-            --slots 17:30 18:00 \
+            --slots 17:30 18:00 18:30 \
             --court 3 \
             --fallback-player amit \
             --fallback-account amit zaheer annika \
