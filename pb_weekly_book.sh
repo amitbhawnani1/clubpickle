@@ -85,6 +85,13 @@ else
     COURT_ARGS=("--court" "$DEFAULT_COURT")
 fi
 
+# Retry count is game-aware. Padel walks a slot-preference × account matrix
+# that is much heavier per attempt than pickleball, so it uses fewer retries
+# to stay well inside the GitHub Actions 25-min job timeout (and to avoid
+# pointlessly re-walking the matrix once popular slots are gone).
+RETRIES=8
+[[ "$GAME" == "padel" ]] && RETRIES=4
+
 # Detect slot-preference mode: if any positional slot arg contains a comma,
 # the slots are treated as a priority list of preferences, each comma-
 # separated. Pass them via --slot-pref. Otherwise pass via --slots.
@@ -107,7 +114,7 @@ done
     "${COURT_ARGS[@]}" \
     --fallback-player "$FALLBACK_PLAYER" \
     "${FA_ARGS[@]}" \
-    --retries 8 \
+    --retries "$RETRIES" \
     --retry-gap 30 \
     --confirm \
     >> "$LOG_FILE" 2>&1

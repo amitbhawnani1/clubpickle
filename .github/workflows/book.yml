@@ -21,7 +21,7 @@ env:
 jobs:
   book:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -117,8 +117,8 @@ jobs:
             --slot-pref "17:00,17:30" "17:30,18:00" "17:00" "17:30" "18:00" \
             --court 1 --court-pref 1 \
             --fallback-player annika \
-            --fallback-account annika amit zaheer \
-            --confirm --retries 8 --retry-gap 30
+            --fallback-account annika \
+            --confirm --retries 4 --retry-gap 30
 
       # ── Padel Saturday — Court 2 only ──
       - name: Book Padel Saturday Court 2
@@ -130,8 +130,8 @@ jobs:
             --slot-pref "17:00,17:30" "17:30,18:00" "17:00" "17:30" "18:00" \
             --court 2 --court-pref 2 \
             --fallback-player annika \
-            --fallback-account annika amit zaheer \
-            --confirm --retries 8 --retry-gap 30
+            --fallback-account annika \
+            --confirm --retries 4 --retry-gap 30
 
       # ── Padel Sunday — Court 1 only ──
       # Priority: 5:30-6:30 PM, 5:00-6:00 PM, any 30-min slot.
@@ -144,8 +144,8 @@ jobs:
             --slot-pref "17:30,18:00" "17:00,17:30" "17:00" "17:30" "18:00" \
             --court 1 --court-pref 1 \
             --fallback-player annika \
-            --fallback-account annika amit zaheer \
-            --confirm --retries 8 --retry-gap 30
+            --fallback-account annika \
+            --confirm --retries 4 --retry-gap 30
 
       # ── Padel Sunday — Court 2 only ──
       - name: Book Padel Sunday Court 2
@@ -157,8 +157,8 @@ jobs:
             --slot-pref "17:30,18:00" "17:00,17:30" "17:00" "17:30" "18:00" \
             --court 2 --court-pref 2 \
             --fallback-player annika \
-            --fallback-account annika amit zaheer \
-            --confirm --retries 8 --retry-gap 30
+            --fallback-account annika \
+            --confirm --retries 4 --retry-gap 30
 
       # ── Holiday check (runs daily, exits silently if not a holiday) ──
       - name: Check and book holidays
